@@ -1,6 +1,10 @@
 package com.vasquez.mitiemposemanal
 
+import android.content.ContentValues
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -13,14 +17,18 @@ class EventosActivity : AppCompatActivity() {
     private lateinit var dbHelper: DatabaseHelper
     private lateinit var autoCompleteTask: AutoCompleteTextView
     private lateinit var tvCategoriaAsociada: TextView
+    private lateinit var tvTiempoEnCurso: TextView
     private lateinit var btnIniciar: Button
     private lateinit var btnFinalizar: Button
     private lateinit var lvEventos: ListView
-    private lateinit var btnIrEventos: Button // Para MainActivity
 
     private var tareaSeleccionadaId: Int = -1
     private var eventoEnCursoId: Int = -1
+    private var inicioEventoActualStr: String? = null
     private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+
+    private val timerHandler = Handler(Looper.getMainLooper())
+    private var timerRunnable: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,6 +38,7 @@ class EventosActivity : AppCompatActivity() {
 
         autoCompleteTask = findViewById(R.id.autoCompleteTask)
         tvCategoriaAsociada = findViewById(R.id.tvCategoriaAsociada)
+        tvTiempoEnCurso = findViewById(R.id.tvTiempoEnCurso)
         btnIniciar = findViewById(R.id.btnIniciarEvento)
         btnFinalizar = findViewById(R.id.btnFinalizarEvento)
         lvEventos = findViewById(R.id.lvEventos)
@@ -39,6 +48,13 @@ class EventosActivity : AppCompatActivity() {
         cargarHistorialEventos()
 
         btnIniciar.setOnClickListener {
+            // Validar estrictamente que no haya ningún evento en curso
+            if (dbHelper.tieneEventoEnCurso() || eventoEnCursoId != -1) {
+                Toast.makeText(this, "Ya hay un evento en curso. Finalízalo antes de iniciar otro.", Toast.LENGTH_SHORT).show()
+                actualizarEstadoBotones(enCurso = true)
+                return@setOnClickListener
+            }
+
             val nombreInput = autoCompleteTask.text.toString().trim()
             if (nombreInput.isEmpty()) {
                 Toast.makeText(this, "Escribe o selecciona una tarea", Toast.LENGTH_SHORT).show()
@@ -60,6 +76,35 @@ class EventosActivity : AppCompatActivity() {
         btnFinalizar.setOnClickListener {
             finalizarEventoEnCurso()
         }
+    }
+
+    override fun onDestroy() {
+        detenerTimer()
+        super.onDestroy()
+    }
+
+    private fun detenerTimer() {
+        timerRunnable?.let { timerHandler.removeCallbacks(it) }
+        timerRunnable = null
+    }
+
+    private fun iniciarTimer(inicioStr: String) {
+        detenerTimer()
+        tvTiempoEnCurso.visibility = View.VISIBLE
+        val inicioTime = LocalDateTime.parse(inicioStr, formatter)
+
+        timerRunnable = object : Runnable {
+            override fun run() {
+                val now = LocalDateTime.now()
+                val duracion = Duration.between(inicioTime, now)
+                val horas = duracion.toHours()
+                val minutos = duracion.toMinutes() % 60
+                val segundos = duracion.seconds % 60
+                tvTiempoEnCurso.text = String.format("🟢 EN CURSO • Tiempo: %02d:%02d:%02d", horas, minutos, segundos)
+                timerHandler.postDelayed(this, 1000)
+            }
+        }
+        timerHandler.post(timerRunnable!!)
     }
 
     private fun configurarBuscadorTareas() {
@@ -108,10 +153,16 @@ class EventosActivity : AppCompatActivity() {
     }
 
     private fun iniciarNuevoEvento(tareaId: Int) {
+        if (dbHelper.tieneEventoEnCurso()) {
+            Toast.makeText(this, "Ya hay un evento en curso. No se puede iniciar otro.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val db = dbHelper.writableDatabase
         val inicioStr = LocalDateTime.now().format(formatter)
+        inicioEventoActualStr = inicioStr
 
-        val values = android.content.ContentValues().apply {
+        val values = ContentValues().apply {
             put(DatabaseHelper.COL_EVT_TAREA_ID, tareaId)
             put(DatabaseHelper.COL_EVT_INICIO, inicioStr)
             put(DatabaseHelper.COL_EVT_FIN, null as String?)
@@ -123,6 +174,7 @@ class EventosActivity : AppCompatActivity() {
             eventoEnCursoId = id.toInt()
             Toast.makeText(this, "¡Evento iniciado!", Toast.LENGTH_SHORT).show()
             actualizarEstadoBotones(enCurso = true)
+            iniciarTimer(inicioStr)
             cargarHistorialEventos()
         }
     }
@@ -130,6 +182,7 @@ class EventosActivity : AppCompatActivity() {
     private fun finalizarEventoEnCurso() {
         if (eventoEnCursoId == -1) return
 
+        detenerTimer()
         val db = dbHelper.writableDatabase
         val finStr = LocalDateTime.now().format(formatter)
 
@@ -149,7 +202,7 @@ class EventosActivity : AppCompatActivity() {
         val segundos = duracion.seconds % 60
         val duracionStr = String.format("%02d:%02d:%02d", horas, minutos, segundos)
 
-        val values = android.content.ContentValues().apply {
+        val values = ContentValues().apply {
             put(DatabaseHelper.COL_EVT_FIN, finStr)
             put(DatabaseHelper.COL_EVT_DURACION, duracionStr)
         }
@@ -158,7 +211,9 @@ class EventosActivity : AppCompatActivity() {
 
         Toast.makeText(this, "Evento finalizado. Duración: $duracionStr", Toast.LENGTH_LONG).show()
         eventoEnCursoId = -1
+        inicioEventoActualStr = null
         actualizarEstadoBotones(enCurso = false)
+        tvTiempoEnCurso.visibility = View.GONE
         autoCompleteTask.text.clear()
         tvCategoriaAsociada.text = "Categoría: -"
         cargarHistorialEventos()
@@ -166,20 +221,29 @@ class EventosActivity : AppCompatActivity() {
 
     private fun verificarEventoEnCurso() {
         val db = dbHelper.readableDatabase
-        val cursor = db.rawQuery("SELECT ${DatabaseHelper.COL_EVT_ID}, ${DatabaseHelper.COL_EVT_TAREA_ID} FROM ${DatabaseHelper.TABLE_EVENTOS} WHERE ${DatabaseHelper.COL_EVT_FIN} IS NULL LIMIT 1", null)
+        val cursor = db.rawQuery("SELECT ${DatabaseHelper.COL_EVT_ID}, ${DatabaseHelper.COL_EVT_TAREA_ID}, ${DatabaseHelper.COL_EVT_INICIO} FROM ${DatabaseHelper.TABLE_EVENTOS} WHERE ${DatabaseHelper.COL_EVT_FIN} IS NULL LIMIT 1", null)
         if (cursor.moveToFirst()) {
             eventoEnCursoId = cursor.getInt(0)
             tareaSeleccionadaId = cursor.getInt(1)
+            inicioEventoActualStr = cursor.getString(2)
             actualizarEstadoBotones(enCurso = true)
+            iniciarTimer(inicioEventoActualStr!!)
 
-            // Buscar nombre de tarea para mostrarlo
-            val tareaCursor = db.rawQuery("SELECT ${DatabaseHelper.COL_TAR_NOMBRE} FROM ${DatabaseHelper.TABLE_TAREAS} WHERE ${DatabaseHelper.COL_TAR_ID} = ?", arrayOf(tareaSeleccionadaId.toString()))
+            // Buscar nombre y categoría de tarea para mostrarlos
+            val tareaCursor = db.rawQuery("""
+                SELECT t.${DatabaseHelper.COL_TAR_NOMBRE}, c.${DatabaseHelper.COL_CAT_NOMBRE}
+                FROM ${DatabaseHelper.TABLE_TAREAS} t
+                INNER JOIN ${DatabaseHelper.TABLE_CATEGORIAS} c ON t.${DatabaseHelper.COL_TAR_CAT_ID} = c.${DatabaseHelper.COL_CAT_ID}
+                WHERE t.${DatabaseHelper.COL_TAR_ID} = ?
+            """, arrayOf(tareaSeleccionadaId.toString()))
             if (tareaCursor.moveToFirst()) {
                 autoCompleteTask.setText(tareaCursor.getString(0))
+                tvCategoriaAsociada.text = "Categoría: ${tareaCursor.getString(1)}"
             }
             tareaCursor.close()
         } else {
             actualizarEstadoBotones(enCurso = false)
+            tvTiempoEnCurso.visibility = View.GONE
         }
         cursor.close()
     }
@@ -209,10 +273,13 @@ class EventosActivity : AppCompatActivity() {
                 val tarea = cursor.getString(1)
                 val cat = cursor.getString(2)
                 val inicio = cursor.getString(3)
-                val fin = cursor.getString(4) ?: "En curso..."
-                val duracion = cursor.getString(5) ?: "-"
+                val fin = cursor.getString(4)
+                val duracion = cursor.getString(5)
 
-                listaEventos.add("• [$cat] $tarea\nInicio: $inicio\nFin: $fin\nDuración: $duracion")
+                val estadoStr = if (fin == null) "🟢 EN CURSO" else "Fin: $fin"
+                val duracionStr = if (duracion == null) "En curso (calculando...)" else duracion
+
+                listaEventos.add("• [$cat] $tarea\nInicio: $inicio\nEstado: $estadoStr\nDuración: $duracionStr")
             } while (cursor.moveToNext())
         }
         cursor.close()

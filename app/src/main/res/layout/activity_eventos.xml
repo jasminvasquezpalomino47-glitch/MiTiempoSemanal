@@ -85,6 +85,19 @@
                     android:textColor="#49454F" />
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- TIEMPO EN CURSO EN TIEMPO REAL -->
+            <TextView
+                android:id="@+id/tvTiempoEnCurso"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:text="⏱️ Tiempo transcurrido: 00:00:00"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#6750A4"
+                android:visibility="gone"
+                android:gravity="center" />
+
             <!-- BOTONES DE INICIAR Y FINALIZAR MÁS ALTOS Y CÓMODOS -->
             <LinearLayout
                 android:layout_width="match_parent"

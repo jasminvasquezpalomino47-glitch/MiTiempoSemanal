@@ -188,4 +188,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         val db = writableDatabase
         return db.delete(TABLE_TAREAS, "$COL_TAR_ID = ?", arrayOf(id.toString()))
     }
+
+    // --- EVENTOS ---
+    fun tieneEventoEnCurso(): Boolean {
+        val db = readableDatabase
+        val cursor = db.rawQuery("SELECT * FROM $TABLE_EVENTOS WHERE $COL_EVT_FIN IS NULL", null)
+        val tiene = cursor.count > 0
+        cursor.close()
+        return tiene
+    }
 }
