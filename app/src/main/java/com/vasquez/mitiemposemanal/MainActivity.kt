@@ -16,7 +16,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnAgregarTarea: Button
     private lateinit var lvTareas: ListView
     private lateinit var btnVerCategorias: Button
-    private lateinit var btnIrEventos: Button // Botón para la nueva pantalla de Eventos
+    private lateinit var btnIrEventos: Button
+    private lateinit var btnIrReportes: Button
 
     private var listaCategorias: List<Categoria> = emptyList()
     private var listaTareas: List<Tarea> = emptyList()
@@ -27,6 +28,9 @@ class MainActivity : AppCompatActivity() {
 
         dbHelper = DatabaseHelper(this)
 
+        // HU-07: Cierre automático de semanas terminadas al abrir la app
+        dbHelper.generarReportesSemanalesPendientes()
+
         etCategoriaNombre = findViewById(R.id.etCategoriaNombre)
         btnAgregarCategoria = findViewById(R.id.btnAgregarCategoria)
         etTareaNombre = findViewById(R.id.etTareaNombre)
@@ -34,7 +38,8 @@ class MainActivity : AppCompatActivity() {
         btnAgregarTarea = findViewById(R.id.btnAgregarTarea)
         lvTareas = findViewById(R.id.lvTareas)
         btnVerCategorias = findViewById(R.id.btnVerCategorias)
-        btnIrEventos = findViewById(R.id.btnIrEventos) // Enlazando el botón del XML
+        btnIrEventos = findViewById(R.id.btnIrEventos)
+        btnIrReportes = findViewById(R.id.btnIrReportes)
 
         cargarCategoriasEnSpinner()
         cargarTareasEnLista()
@@ -85,9 +90,15 @@ class MainActivity : AppCompatActivity() {
             mostrarListaCategoriasDialog()
         }
 
-        // Navegar hacia la pantalla de Eventos del Sprint 2
+        // Navegar hacia la pantalla de Eventos
         btnIrEventos.setOnClickListener {
             val intent = Intent(this, EventosActivity::class.java)
+            startActivity(intent)
+        }
+
+        // Navegar hacia la pantalla de Reportes Históricos (Sprint 4)
+        btnIrReportes.setOnClickListener {
+            val intent = Intent(this, ReportesActivity::class.java)
             startActivity(intent)
         }
     }

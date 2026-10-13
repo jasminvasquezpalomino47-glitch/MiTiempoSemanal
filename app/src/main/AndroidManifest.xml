@@ -28,6 +28,11 @@
             android:name=".EventosActivity"
             android:exported="false" />
 
+        <!-- Registro de la pantalla de Reportes Históricos para el Sprint 4 -->
+        <activity
+            android:name=".ReportesActivity"
+            android:exported="false" />
+
     </application>
 
 </manifest>

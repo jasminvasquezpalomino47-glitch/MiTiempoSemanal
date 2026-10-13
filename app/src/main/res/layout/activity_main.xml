@@ -41,7 +41,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Jasmin Vásquez • v0.1.0"
+                    android:text="Jasmin Vásquez • v1.0.0"
                     android:textColor="#E8DEF8"
                     android:textSize="13sp"
                     android:layout_marginTop="2dp" />
@@ -214,6 +214,17 @@
             android:text="⏱️ Ir a Gestión de Eventos"
             app:cornerRadius="12dp"
             app:backgroundTint="#6750A4" />
+
+        <!-- BOTÓN PARA IR A LA PANTALLA DE REPORTES HISTÓRICOS (SPRINT 4) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnIrReportes"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="📈 Ver Reportes Históricos"
+            app:cornerRadius="12dp"
+            app:strokeColor="#6750A4" />
 
 
     </LinearLayout>
